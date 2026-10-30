@@ -30,6 +30,20 @@ import {enqueueAppNotification} from "../../actions/notificationActions";
 
 
 
+// Returns the lowercased file extension (substring after the LAST dot), or ''
+// when the filename has no dot. The value is sent to the backend Lambda as
+// `file_type`, which branches on exact, case-sensitive matches ('pdf'/'jpeg'/
+// 'jpg'/'png'). Deriving it from the first dot or preserving case (as the old
+// logic did) breaks multi-dot ('Q1.report.pdf') and uppercase ('report.PDF')
+// filenames, leaving the UI stuck loading because no CSV is ever produced.
+export function getFileType(fileName) {
+    const dotIndex = fileName.lastIndexOf(".");
+    if (dotIndex === -1) {
+        return "";
+    }
+    return fileName.slice(dotIndex + 1).toLowerCase();
+}
+
 const TextOnlyTooltip = styled(({ className, ...props }) => (
     <Tooltip {...props} classes={{ popper: className }} />
 ))({
@@ -184,6 +198,7 @@ class S3Upload extends Component {
         let info;
         const [, , , extension] = /([^.]+)(\.(\w+))?$/.exec(fileName);
         const mimeType = fileName.slice(fileName.indexOf('.')+1);
+        const fileType = getFileType(fileName);
         const keyName = uuid().concat("_").concat(fileName.replace(/\.[^/.]+$/, "")).concat("-" + mimeType);
         const key = `${keyName}${extension && '.'}${extension}`;
         addProcessingStatus({id: key, status: "Uploading", expirationTime: Math.floor(new Date().getTime()/1000.0) + 604800});
@@ -208,7 +223,7 @@ class S3Upload extends Component {
                     keyName: keyName, 
                     confidence: confidence,
                     pages: pages,
-                    file_type: mimeType
+                    file_type: fileType
                 }
                 updateProcessingStatus({id: key, status: "Processing"});
                 return uploadData({
